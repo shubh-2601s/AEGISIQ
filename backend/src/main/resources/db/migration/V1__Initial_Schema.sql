@@ -1,10 +1,12 @@
 -- =============================================================
 -- AegisIQ V1 — Complete Platform Schema
+-- Compatible with: local PostgreSQL 16 AND Supabase (PostgreSQL 15+)
 -- Managed by Flyway. Do NOT modify Hibernate ddl-auto.
 -- =============================================================
 
--- Extensions
+-- Extensions (Supabase already has pgcrypto enabled — IF NOT EXISTS is safe)
 CREATE EXTENSION IF NOT EXISTS "pgcrypto";
+
 
 -- =============================================================
 -- ENUMERATIONS (as VARCHARs for Flyway/Hibernate portability)
