@@ -1,0 +1,39 @@
+# ==============================================================================
+# AegisIQ Backend Multi-Stage Dockerfile
+# Base: Eclipse Temurin JDK 21 -> Eclipse Temurin JRE 21 Alpine
+# ==============================================================================
+
+# Stage 1: Build & Package
+FROM maven:3.9-eclipse-temurin-21-alpine AS builder
+WORKDIR /workspace
+
+# Cache dependencies
+COPY backend/pom.xml .
+RUN mvn dependency:go-offline -B || true
+
+# Copy source and build jar
+COPY backend/src ./src
+RUN mvn clean package -DskipTests -B
+
+# Stage 2: Hardened Runtime
+FROM eclipse-temurin:21-jre-alpine AS runtime
+
+# Security hardening: create unprivileged system user
+RUN addgroup -S appgroup && adduser -S appuser -G appgroup
+
+WORKDIR /app
+
+# Copy executable jar from builder
+COPY --from=builder /workspace/target/*.jar app.jar
+
+# Adjust permissions
+RUN chown -R appuser:appgroup /app
+
+USER appuser
+
+EXPOSE 8080
+
+HEALTHCHECK --interval=10s --timeout=5s --start-period=30s --retries=3 \
+  CMD wget --no-verbose --tries=1 --spider http://localhost:8080/actuator/health || exit 1
+
+ENTRYPOINT ["java", "-XX:+UseContainerSupport", "-XX:MaxRAMPercentage=75.0", "-jar", "app.jar"]
