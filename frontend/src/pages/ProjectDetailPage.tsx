@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery } from 'react-query'
 import { projectsApi, findingsApi, scansApi } from '../lib/api'
@@ -8,6 +9,12 @@ import FindingsTable from '../components/FindingsTable'
 export default function ProjectDetailPage() {
   const { projectId } = useParams<{ projectId: string }>()
   const navigate = useNavigate()
+  const [filterSeverity, setFilterSeverity] = useState<string | undefined>(undefined)
+
+  if (!projectId || projectId === 'new') {
+    navigate('/projects', { replace: true })
+    return null
+  }
 
   const { data: projectData, isLoading: pLoading } = useQuery(
     ['project', projectId], () => projectsApi.get(projectId!)
@@ -44,28 +51,45 @@ export default function ProjectDetailPage() {
             <p className="page-subtitle">{project?.description || 'Security scanning project'}</p>
           </div>
         </div>
-        <span className={`badge ${project?.status === 'ACTIVE' ? 'badge-low' : 'badge-false-positive'}`}>
-          {project?.status}
-        </span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+          <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+            Composite Risk Score: <strong style={{ color: 'var(--accent-400)', fontFamily: 'var(--font-mono)' }}>{parseFloat(project?.riskScore || 0).toFixed(1)}</strong>
+          </span>
+          <span className={`badge ${project?.status === 'ACTIVE' ? 'badge-low' : 'badge-false-positive'}`}>
+            {project?.status}
+          </span>
+        </div>
       </div>
 
       {/* Severity Summary */}
       <div className="metric-grid" style={{ gridTemplateColumns: 'repeat(6, 1fr)' }}>
-        {['CRITICAL', 'HIGH', 'MEDIUM', 'LOW', 'OPEN', 'RESOLVED'].map(key => (
-          <div key={key} className={`metric-card ${key.toLowerCase()}`}>
-            <div className="metric-label">{key}</div>
-            <div className="metric-value" style={{
-              fontSize: '1.6rem',
-              color: key === 'CRITICAL' ? 'var(--critical)' :
-                     key === 'HIGH' ? 'var(--high)' :
-                     key === 'MEDIUM' ? 'var(--medium)' :
-                     key === 'LOW' ? 'var(--low)' :
-                     key === 'RESOLVED' ? '#34d399' : 'var(--primary-400)'
-            }}>
-              {summary[key] ?? 0}
+        {['CRITICAL', 'HIGH', 'MEDIUM', 'LOW', 'OPEN', 'RESOLVED'].map(key => {
+          const isActive = filterSeverity === key
+          return (
+            <div
+              key={key}
+              className={`metric-card ${key.toLowerCase()}`}
+              style={{
+                cursor: 'pointer',
+                borderColor: isActive ? 'var(--border-bright)' : undefined,
+                boxShadow: isActive ? '0 0 12px var(--primary-glow)' : undefined
+              }}
+              onClick={() => setFilterSeverity(isActive ? undefined : (['CRITICAL', 'HIGH', 'MEDIUM', 'LOW'].includes(key) ? key : undefined))}
+            >
+              <div className="metric-label">{key}</div>
+              <div className="metric-value" style={{
+                fontSize: '1.6rem',
+                color: key === 'CRITICAL' ? 'var(--critical)' :
+                       key === 'HIGH' ? 'var(--high)' :
+                       key === 'MEDIUM' ? 'var(--medium)' :
+                       key === 'LOW' ? 'var(--low)' :
+                       key === 'RESOLVED' ? '#34d399' : 'var(--primary-400)'
+              }}>
+                {summary[key] ?? 0}
+              </div>
             </div>
-          </div>
-        ))}
+          )
+        })}
       </div>
 
       {/* Grid Layout: Scan Upload + Recent Scans */}
@@ -127,7 +151,7 @@ export default function ProjectDetailPage() {
           <ShieldAlert size={18} style={{ color: 'var(--critical)' }} />
           <h2 style={{ fontWeight: 600 }}>Security Findings</h2>
         </div>
-        <FindingsTable projectId={projectId!} />
+        <FindingsTable projectId={projectId!} initialSeverity={filterSeverity} key={filterSeverity || 'all'} />
       </div>
     </div>
   )

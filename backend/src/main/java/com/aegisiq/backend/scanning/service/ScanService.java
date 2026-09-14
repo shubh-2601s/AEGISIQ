@@ -158,7 +158,15 @@ public class ScanService {
             scan.setFindingsCount(findingsCount);
             scanRepository.save(scan);
 
-            log.info("Scan {} completed: {} files, {} findings", scanId, filesScanned, findingsCount);
+            // Update project overall risk score from max open finding risk score
+            java.math.BigDecimal maxRisk = findingRepository.findMaxRiskScoreByProjectId(scan.getProjectId())
+                    .orElse(java.math.BigDecimal.ZERO);
+            projectRepository.findById(scan.getProjectId()).ifPresent(p -> {
+                p.setRiskScore(maxRisk);
+                projectRepository.save(p);
+            });
+
+            log.info("Scan {} completed: {} files, {} findings, project risk score: {}", scanId, filesScanned, findingsCount, maxRisk);
 
         } catch (Exception e) {
             log.error("Scan {} failed: {}", scanId, e.getMessage(), e);

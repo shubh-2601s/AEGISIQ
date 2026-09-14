@@ -42,8 +42,12 @@ public class ScanController {
             return ResponseEntity.badRequest().build();
         }
 
+        String filename = file.getOriginalFilename();
         String contentType = file.getContentType();
-        if (contentType == null || (!contentType.contains("zip") && !contentType.contains("octet-stream"))) {
+        boolean isZipFilename = filename != null && filename.toLowerCase().endsWith(".zip");
+        boolean isZipContentType = contentType != null && (contentType.contains("zip") || contentType.contains("octet-stream") || contentType.contains("compressed"));
+
+        if (!isZipFilename && !isZipContentType) {
             throw new IllegalArgumentException("Only .zip archives are accepted for scanning.");
         }
 

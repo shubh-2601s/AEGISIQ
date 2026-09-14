@@ -1,7 +1,7 @@
 import { useQuery } from 'react-query'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
-import { projectsApi } from '../lib/api'
+import { projectsApi, findingsApi, scansApi } from '../lib/api'
 import {
   ShieldAlert, Activity, FolderOpen, GitBranch,
   TrendingDown, Zap, Clock
@@ -9,7 +9,7 @@ import {
 
 // Simple sparkline-like bar
 function MiniBar({ value, max, color }: { value: number; max: number; color: string }) {
-  const pct = max > 0 ? (value / max) * 100 : 0
+  const pct = max > 0 ? Math.min((value / max) * 100, 100) : 0
   return (
     <div style={{ height: 4, background: 'var(--bg-elevated)', borderRadius: 2, overflow: 'hidden' }}>
       <div style={{ height: '100%', width: `${pct}%`, background: color, borderRadius: 2,
@@ -22,22 +22,48 @@ export default function DashboardPage() {
   const { user } = useAuth()
   const navigate = useNavigate()
 
-  const { data: projectsData } = useQuery('projects', () => projectsApi.list(0, 100))
+  const { data: projectsData } = useQuery('projects', () => projectsApi.list(0, 100), {
+    refetchOnMount: true,
+    staleTime: 0,
+  })
   const projects = projectsData?.data?.content || []
+  const firstProjectId = projects[0]?.id
+
+  const { data: summaryRes } = useQuery(
+    ['dashboard-summary', firstProjectId],
+    () => findingsApi.summary(firstProjectId),
+    { enabled: !!firstProjectId, refetchOnMount: true, staleTime: 0 }
+  )
+  const summary = summaryRes?.data || {}
+
+  const { data: scansRes } = useQuery(
+    ['dashboard-scans', firstProjectId],
+    () => scansApi.list(firstProjectId),
+    { enabled: !!firstProjectId, refetchOnMount: true, staleTime: 0 }
+  )
+  const totalScans = scansRes?.data?.totalElements ?? scansRes?.data?.content?.length ?? 0
+
+  const criticalCount = summary.CRITICAL || 0
+  const resolvedCount = summary.RESOLVED || 0
 
   return (
-    <div className="fade-in">
+    <div className="fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
       {/* Header */}
-      <div className="page-header">
+      <div className="hud-panel cyber-glowing-border" style={{ padding: '1.25rem 1.5rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '1rem' }}>
         <div>
-          <h1 className="page-title">Security Overview</h1>
-          <p className="page-subtitle">
-            Welcome back, <strong>{user?.name}</strong> — here's your platform intelligence summary.
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+            <h1 className="page-title" style={{ fontSize: '1.4rem', fontWeight: 800 }}>Security Command Overview</h1>
+            <span className="cyber-badge">
+              LIVE CYBER TELEMETRY
+            </span>
+          </div>
+          <p className="page-subtitle" style={{ marginTop: '0.2rem' }}>
+            Welcome back, <strong style={{ color: 'var(--cyber-cyan)' }}>{user?.name}</strong> — enterprise security intelligence summary.
           </p>
         </div>
-        <button className="btn btn-primary" onClick={() => navigate('/projects/new')}>
+        <button className="btn btn-primary" style={{ background: 'linear-gradient(135deg, var(--cyber-cyan), var(--primary-600))', color: '#000', fontWeight: 800 }} onClick={() => navigate('/projects')}>
           <FolderOpen size={16} />
-          New Project
+          View Active Projects
         </button>
       </div>
 
@@ -49,11 +75,11 @@ export default function DashboardPage() {
             Critical Findings
           </div>
           <div className="metric-value" style={{ color: 'var(--critical)' }}>
-            {projects.reduce((acc: number) => acc, 0)}
+            {criticalCount}
           </div>
           <div className="metric-delta">Across all active projects</div>
           <div style={{ marginTop: '0.75rem' }}>
-            <MiniBar value={3} max={10} color="var(--critical)" />
+            <MiniBar value={criticalCount} max={10} color="var(--critical)" />
           </div>
         </div>
 
@@ -76,10 +102,12 @@ export default function DashboardPage() {
             <Activity size={13} style={{ color: 'var(--accent-400)' }} />
             Total Scans Run
           </div>
-          <div className="metric-value" style={{ color: 'var(--text-bright)' }}>0</div>
+          <div className="metric-value" style={{ color: 'var(--text-bright)' }}>
+            {totalScans}
+          </div>
           <div className="metric-delta">Since account creation</div>
           <div style={{ marginTop: '0.75rem' }}>
-            <MiniBar value={0} max={100} color="var(--accent-400)" />
+            <MiniBar value={totalScans} max={50} color="var(--accent-400)" />
           </div>
         </div>
 
@@ -88,10 +116,12 @@ export default function DashboardPage() {
             <TrendingDown size={13} style={{ color: 'var(--low)' }} />
             Resolved Today
           </div>
-          <div className="metric-value" style={{ color: 'var(--low)' }}>0</div>
+          <div className="metric-value" style={{ color: 'var(--low)' }}>
+            {resolvedCount}
+          </div>
           <div className="metric-delta">Vulnerabilities closed</div>
           <div style={{ marginTop: '0.75rem' }}>
-            <MiniBar value={0} max={10} color="var(--low)" />
+            <MiniBar value={resolvedCount} max={10} color="var(--low)" />
           </div>
         </div>
       </div>
@@ -119,7 +149,7 @@ export default function DashboardPage() {
                 Create a project to begin scanning your codebase for security vulnerabilities.
               </div>
               <button className="btn btn-primary" style={{ marginTop: '1rem' }}
-                      onClick={() => navigate('/projects/new')}>
+                      onClick={() => navigate('/projects')}>
                 Create First Project
               </button>
             </div>

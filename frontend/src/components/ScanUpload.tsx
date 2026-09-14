@@ -30,7 +30,7 @@ export default function ScanUpload({ projectId }: Props) {
   const handleFile = (file: File) => {
     setError('')
     setSuccess(false)
-    if (!file.name.endsWith('.zip')) {
+    if (!file.name.toLowerCase().endsWith('.zip')) {
       setError('Only .zip archives are accepted.')
       return
     }
@@ -51,6 +51,7 @@ export default function ScanUpload({ projectId }: Props) {
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (file) handleFile(file)
+    e.target.value = ''
   }
 
   return (

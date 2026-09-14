@@ -69,9 +69,35 @@ public class GlobalExceptionHandler {
                 .body(simpleError(400, "BAD_REQUEST", ex.getMessage(), req));
     }
 
+    @ExceptionHandler(org.springframework.web.HttpMediaTypeNotSupportedException.class)
+    public ResponseEntity<ApiError> handleMediaTypeNotSupported(org.springframework.web.HttpMediaTypeNotSupportedException ex, WebRequest req) {
+        return ResponseEntity.status(HttpStatus.UNSUPPORTED_MEDIA_TYPE)
+                .body(simpleError(415, "UNSUPPORTED_MEDIA_TYPE", "Content-Type is not supported. Please upload a valid .zip file.", req));
+    }
+
+    @ExceptionHandler(org.springframework.web.multipart.MaxUploadSizeExceededException.class)
+    public ResponseEntity<ApiError> handleMaxUploadSizeExceeded(org.springframework.web.multipart.MaxUploadSizeExceededException ex, WebRequest req) {
+        return ResponseEntity.status(HttpStatus.PAYLOAD_TOO_LARGE)
+                .body(simpleError(413, "PAYLOAD_TOO_LARGE", "Uploaded archive exceeds maximum permitted size of 50MB.", req));
+    }
+
+    @ExceptionHandler(org.springframework.web.multipart.MultipartException.class)
+    public ResponseEntity<ApiError> handleMultipartError(org.springframework.web.multipart.MultipartException ex, WebRequest req) {
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(simpleError(400, "MULTIPART_ERROR", "Failed to parse uploaded archive: " + ex.getMessage(), req));
+    }
+
+    @ExceptionHandler(org.springframework.http.converter.HttpMessageNotReadableException.class)
+    public ResponseEntity<ApiError> handleJsonParseError(org.springframework.http.converter.HttpMessageNotReadableException ex, WebRequest req) {
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(simpleError(400, "INVALID_JSON", "Malformed request payload.", req));
+    }
+
+    private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(GlobalExceptionHandler.class);
+
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ApiError> handleAll(Exception ex, WebRequest req) {
-        // Log internally but never surface implementation details
+        log.error("Unhandled exception at {}: {}", req.getDescription(false), ex.getMessage(), ex);
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                 .body(simpleError(500, "INTERNAL_SERVER_ERROR",
                         "An unexpected error occurred. Please contact support.", req));

@@ -33,6 +33,9 @@ public interface FindingRepository extends JpaRepository<Finding, UUID> {
 
     long countByProjectIdAndStatus(UUID projectId, FindingStatus status);
 
+    @Query("SELECT MAX(f.riskScore) FROM Finding f WHERE f.projectId = :projectId AND f.status = 'OPEN'")
+    Optional<java.math.BigDecimal> findMaxRiskScoreByProjectId(@Param("projectId") UUID projectId);
+
     @Query("SELECT f FROM Finding f WHERE f.projectId = :projectId AND " +
            "(:severity IS NULL OR f.severity = :severity) AND " +
            "(:status IS NULL OR f.status = :status) AND " +

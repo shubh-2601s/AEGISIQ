@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom'
 import { projectsApi } from '../lib/api'
 import { FolderOpen, Plus, Trash2, X, AlertCircle } from 'lucide-react'
 
-function CreateProjectModal({ onClose }: { onClose: () => void }) {
+function CreateProjectModal({ onClose, onCreated }: { onClose: () => void; onCreated: (id: string) => void }) {
   const [name, setName] = useState('')
   const [description, setDescription] = useState('')
   const [error, setError] = useState('')
@@ -13,9 +13,12 @@ function CreateProjectModal({ onClose }: { onClose: () => void }) {
   const mutation = useMutation(
     (data: { name: string; description?: string }) => projectsApi.create(data),
     {
-      onSuccess: () => {
+      onSuccess: (res: any) => {
         queryClient.invalidateQueries('projects')
         onClose()
+        if (res?.data?.id) {
+          onCreated(res.data.id)
+        }
       },
       onError: (err: any) => {
         setError(err.response?.data?.message || 'Failed to create project')
@@ -92,7 +95,10 @@ export default function ProjectsPage() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
 
-  const { data, isLoading } = useQuery('projects', () => projectsApi.list(0, 50))
+  const { data, isLoading } = useQuery('projects', () => projectsApi.list(0, 50), {
+    refetchOnMount: true,
+    staleTime: 0,
+  })
   const projects = data?.data?.content || []
 
   const deleteMutation = useMutation(
@@ -113,7 +119,7 @@ export default function ProjectsPage() {
         </button>
       </div>
 
-      {showModal && <CreateProjectModal onClose={() => setShowModal(false)} />}
+      {showModal && <CreateProjectModal onClose={() => setShowModal(false)} onCreated={id => navigate(`/projects/${id}`)} />}
 
       {isLoading ? (
         <div className="empty-state">

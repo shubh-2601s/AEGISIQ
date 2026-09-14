@@ -4,7 +4,6 @@ const BASE_URL = '/api/v1'
 
 export const api = axios.create({
   baseURL: BASE_URL,
-  headers: { 'Content-Type': 'application/json' },
 })
 
 // Auth token injection
@@ -55,9 +54,7 @@ export const scansApi = {
   upload: (projectId: string, file: File) => {
     const formData = new FormData()
     formData.append('file', file)
-    return api.post(`/projects/${projectId}/scans`, formData, {
-      headers: { 'Content-Type': 'multipart/form-data' },
-    })
+    return api.post(`/projects/${projectId}/scans`, formData)
   },
 }
 

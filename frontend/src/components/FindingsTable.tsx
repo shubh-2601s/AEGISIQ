@@ -19,10 +19,12 @@ const STATUS_CLASSES: Record<string, string> = {
   ACCEPTED_RISK: 'badge-false-positive',
 }
 
-interface Props { projectId: string }
+interface Props { projectId: string; initialSeverity?: string }
 
 function FindingRow({ finding, projectId }: { finding: any; projectId: string }) {
   const [expanded, setExpanded] = useState(false)
+  const [showAiFix, setShowAiFix] = useState(false)
+  const [copied, setCopied] = useState(false)
   const queryClient = useQueryClient()
 
   const statusMutation = useMutation(
@@ -30,19 +32,53 @@ function FindingRow({ finding, projectId }: { finding: any; projectId: string })
     { onSuccess: () => queryClient.invalidateQueries(['findings', projectId]) }
   )
 
+  const copyEvidence = () => {
+    if (finding.evidence) {
+      navigator.clipboard.writeText(finding.evidence)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    }
+  }
+
+  // Generate synthetic clean patch based on finding type for demonstration
+  const getCleanPatch = () => {
+    if (finding.ruleId === 'SEC-001') {
+      return {
+        oldLine: 'AWS_SECRET_KEY = "AKIAIOSFODNN7EXAMPLE_SECRET_TOKEN"',
+        newLine: 'AWS_SECRET_KEY = os.getenv("AWS_SECRET_ACCESS_KEY")',
+        explanation: 'Hardcoded API secrets allow unauthorized cloud access. Securely read credentials from environment variables or AWS Secrets Manager.'
+      }
+    }
+    if (finding.ruleId === 'XSS-001') {
+      return {
+        oldLine: 'element.innerHTML = userInput;',
+        newLine: 'element.textContent = userInput;',
+        explanation: 'Directly assigning un-sanitized user inputs to innerHTML enables Cross-Site Scripting. Use textContent or DOMPurify.sanitize().'
+      }
+    }
+    return {
+      oldLine: finding.evidence || 'raw_input = request.get("data")',
+      newLine: `// Refactored safe implementation\nsanitized_input = sanitize(${finding.evidence || 'raw_input'})`,
+      explanation: 'Refactor input processing to enforce strict validation and parameterization before evaluation.'
+    }
+  }
+
+  const patch = getCleanPatch()
+
   return (
     <>
-      <tr onClick={() => setExpanded(!expanded)}>
+      <tr onClick={() => setExpanded(!expanded)} style={{ cursor: 'pointer' }}>
         <td>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
             {expanded ? <ChevronDown size={14} style={{ color: 'var(--text-muted)' }} /> :
                         <ChevronRight size={14} style={{ color: 'var(--text-muted)' }} />}
             <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.75rem',
-                           color: 'var(--text-muted)' }}>
+                           color: 'var(--primary-400)', background: 'rgba(59,130,246,0.1)',
+                           padding: '0.1rem 0.4rem', borderRadius: 4 }}>
               {finding.ruleId}
             </span>
           </div>
-          <div style={{ fontWeight: 500, marginTop: '0.15rem' }}>{finding.title}</div>
+          <div style={{ fontWeight: 600, marginTop: '0.2rem', color: 'var(--text-bright)' }}>{finding.title}</div>
         </td>
         <td>
           <span className={`badge ${SEVERITY_CLASSES[finding.severity] || 'badge-low'}`}>
@@ -56,12 +92,12 @@ function FindingRow({ finding, projectId }: { finding: any; projectId: string })
         </td>
         <td style={{ fontFamily: 'var(--font-mono)', fontSize: '0.75rem', color: 'var(--text-muted)' }}>
           {finding.filePath ? (
-            <div style={{ maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            <div style={{ maxWidth: 220, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
               {finding.filePath}{finding.lineNumber ? `:${finding.lineNumber}` : ''}
             </div>
           ) : '—'}
         </td>
-        <td style={{ fontFamily: 'var(--font-mono)', fontSize: '0.875rem' }}>
+        <td style={{ fontFamily: 'var(--font-mono)', fontSize: '0.875rem', fontWeight: 700, color: 'var(--accent-400)' }}>
           {parseFloat(finding.riskScore).toFixed(1)}
         </td>
         <td onClick={e => e.stopPropagation()}>
@@ -82,35 +118,69 @@ function FindingRow({ finding, projectId }: { finding: any; projectId: string })
 
       {expanded && (
         <tr>
-          <td colSpan={6} style={{ padding: '1rem 1.5rem', background: 'var(--bg-elevated)' }}>
+          <td colSpan={6} style={{ padding: '1.25rem 1.5rem', background: 'var(--bg-elevated)', borderBottom: '1px solid var(--border-default)' }}>
             <div style={{ display: 'grid', gap: '1rem', gridTemplateColumns: '1fr 1fr' }}>
               <div>
-                <div style={{ fontSize: '0.72rem', fontWeight: 600, color: 'var(--text-muted)',
+                <div style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-muted)',
                               textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.4rem' }}>
-                  Description
+                  Description &amp; Impact
                 </div>
                 <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', lineHeight: 1.6 }}>
                   {finding.description}
                 </p>
               </div>
+
               <div>
-                <div style={{ fontSize: '0.72rem', fontWeight: 600, color: 'var(--text-muted)',
+                <div style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-muted)',
                               textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.4rem' }}>
-                  Remediation
+                  Recommended Guidance
                 </div>
                 <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', lineHeight: 1.6 }}>
                   {finding.remediation}
                 </p>
               </div>
+
               {finding.evidence && (
                 <div style={{ gridColumn: '1 / -1' }}>
-                  <div style={{ fontSize: '0.72rem', fontWeight: 600, color: 'var(--text-muted)',
-                                textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.4rem' }}>
-                    Evidence
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.4rem' }}>
+                    <div style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-muted)',
+                                  textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                      Evidence Snippet ({finding.filePath}:{finding.lineNumber})
+                    </div>
+                    <button className="btn btn-secondary btn-sm" style={{ fontSize: '0.7rem', padding: '0.15rem 0.5rem' }} onClick={copyEvidence}>
+                      {copied ? '✓ Copied' : 'Copy Evidence'}
+                    </button>
                   </div>
                   <div className="code-snippet">{finding.evidence}</div>
                 </div>
               )}
+
+              {/* AI Remediation Assistant Banner */}
+              <div style={{ gridColumn: '1 / -1', marginTop: '0.5rem', background: 'var(--bg-surface)', padding: '1rem', borderRadius: 8, border: '1px solid var(--border-default)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <span style={{ fontSize: '1rem' }}>🤖</span>
+                    <span style={{ fontWeight: 700, fontSize: '0.85rem', color: 'var(--text-bright)' }}>
+                      AI Security Analyst Remediation Patch
+                    </span>
+                  </div>
+                  <button className="btn btn-primary btn-sm" onClick={() => setShowAiFix(!showAiFix)}>
+                    {showAiFix ? 'Hide Patch Proposal' : '⚡ Generate AI Patch'}
+                  </button>
+                </div>
+
+                {showAiFix && (
+                  <div className="fade-in" style={{ marginTop: '0.75rem' }}>
+                    <div className="code-snippet" style={{ marginBottom: '0.75rem' }}>
+                      <div className="diff-remove">- {patch.oldLine}</div>
+                      <div className="diff-add">+ {patch.newLine}</div>
+                    </div>
+                    <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
+                      💡 <strong>Reasoning:</strong> {patch.explanation}
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
           </td>
         </tr>
@@ -119,8 +189,8 @@ function FindingRow({ finding, projectId }: { finding: any; projectId: string })
   )
 }
 
-export default function FindingsTable({ projectId }: Props) {
-  const [severity, setSeverity] = useState('')
+export default function FindingsTable({ projectId, initialSeverity }: Props) {
+  const [severity, setSeverity] = useState(initialSeverity || '')
   const [status, setStatus] = useState('')
   const [page, setPage] = useState(0)
 
